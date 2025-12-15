@@ -3,50 +3,40 @@
     <Login v-if="!isLoggedIn" @login-success="onLoginSuccess" />
 
     <div v-else>
-      <!-- 顶部导航 -->
-      <van-nav-bar title="机器截图查询" fixed placeholder>
+      <!-- Top Navigation -->
+      <van-nav-bar title="Screenshot Query" fixed placeholder>
         <template #right>
-          <span class="logout-text" @click="handleLogout">退出</span>
+          <span class="logout-text" @click="handleLogout">Logout</span>
         </template>
       </van-nav-bar>
 
       <div class="main-content">
-        <!-- 查询条件 -->
-        <van-cell-group inset title="查询条件">
-          <!-- 品牌选择 -->
+        <!-- Query Conditions -->
+        <van-cell-group inset title="Query">
+          <!-- Brand Selection -->
           <van-field
             v-model="selectedBrandText"
             is-link
             readonly
-            label="品牌"
-            placeholder="请选择品牌（必选）"
+            label="Brand"
+            placeholder="Select brand (required)"
             @click="showBrandPicker = true"
           />
-          <!-- 型号选择 -->
+          <!-- Model Selection -->
           <van-field
             v-model="selectedModelText"
             is-link
             readonly
-            label="机器型号"
-            placeholder="请选择型号（必选）"
+            label="Model"
+            placeholder="Select model (required)"
             @click="showModelPicker = true"
             :disabled="!selectedBrand"
           />
-          <!-- 版本选择 
-          <van-field
-            v-model="selectedVersionText"
-            is-link
-            readonly
-            label="版本"
-            placeholder="全部版本（可选）"
-            @click="showVersionPicker = true"
-            :disabled="!selectedModel"
-          />-->
-          <!-- 截图代码 -->
+          <!-- Screenshot Code -->
           <van-field
             v-model="inputCode"
-            label="截图代码"
-            placeholder="请输入代码，如 005-120"
+            label="Code"
+            placeholder="e.g. 005-120"
             clearable
             @keyup.enter="queryImage"
           />
@@ -54,12 +44,12 @@
 
         <div class="query-btn-wrap">
           <van-button type="primary" block round :loading="loading" @click="queryImage">
-            查询截图
+            Search
           </van-button>
         </div>
 
-        <!-- 搜索结果 -->
-        <van-cell-group inset title="搜索结果" v-if="searchResults.length > 0">
+        <!-- Search Results -->
+        <van-cell-group inset title="Results" v-if="searchResults.length > 0">
           <van-cell
             v-for="item in searchResults"
             :key="item.path"
@@ -69,8 +59,8 @@
           />
         </van-cell-group>
 
-        <!-- 图片预览 -->
-        <van-cell-group inset title="截图预览" v-if="imageUrl">
+        <!-- Image Preview -->
+        <van-cell-group inset title="Preview" v-if="imageUrl">
           <div class="image-preview">
             <van-image
               :src="imageUrl"
@@ -82,40 +72,29 @@
         </van-cell-group>
       </div>
 
-      <!-- 品牌选择器 -->
+      <!-- Brand Picker -->
       <van-popup v-model:show="showBrandPicker" position="bottom" round>
         <van-picker
           :columns="brandList"
           :columns-field-names="{ text: 'text', value: 'text' }"
           @confirm="onBrandConfirm"
           @cancel="showBrandPicker = false"
-          title="选择品牌"
+          title="Select Brand"
         />
       </van-popup>
 
-      <!-- 型号选择器 -->
+      <!-- Model Picker -->
       <van-popup v-model:show="showModelPicker" position="bottom" round>
         <van-picker
           :columns="modelList"
           :columns-field-names="{ text: 'text', value: 'text' }"
           @confirm="onModelConfirm"
           @cancel="showModelPicker = false"
-          title="选择机器型号"
+          title="Select Model"
         />
       </van-popup>
 
-      <!-- 版本选择器 -->
-      <van-popup v-model:show="showVersionPicker" position="bottom" round>
-        <van-picker
-          :columns="versionColumns"
-          :columns-field-names="{ text: 'text', value: 'text' }"
-          @confirm="onVersionConfirm"
-          @cancel="showVersionPicker = false"
-          title="选择版本"
-        />
-      </van-popup>
-
-      <!-- 图片预览 -->
+      <!-- Image Preview -->
       <van-image-preview v-model:show="showPreview" :images="[imageUrl]" />
     </div>
   </div>
@@ -128,39 +107,31 @@ import Login from './components/Login.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
-// 登录状态
+// Login state
 const isLoggedIn = ref(false)
 const user = ref(null)
 
-// 数据
+// Data
 const brandListRaw = ref([])
 const modelListRaw = ref([])
-const versionListRaw = ref([])
 const searchResults = ref([])
 
 const selectedBrand = ref('')
 const selectedBrandText = ref('')
 const selectedModel = ref('')
 const selectedModelText = ref('')
-const selectedVersion = ref('')
-const selectedVersionText = ref('')
 const inputCode = ref('')
 const imageUrl = ref('')
 const loading = ref(false)
 
-// 弹窗控制
+// Popup control
 const showBrandPicker = ref(false)
 const showModelPicker = ref(false)
-const showVersionPicker = ref(false)
 const showPreview = ref(false)
 
-// Picker 数据格式
+// Picker data format
 const brandList = computed(() => brandListRaw.value.map((b) => ({ text: b })))
 const modelList = computed(() => modelListRaw.value.map((m) => ({ text: m })))
-const versionColumns = computed(() => [
-  { text: '全部版本' },
-  ...versionListRaw.value.map((v) => ({ text: v })),
-])
 
 onMounted(() => {
   const savedUser = localStorage.getItem('user')
@@ -179,7 +150,12 @@ const onLoginSuccess = (userData) => {
 
 const handleLogout = async () => {
   try {
-    await showDialog({ title: '确认退出？', showCancelButton: true })
+    await showDialog({
+      title: 'Confirm logout?',
+      showCancelButton: true,
+      confirmButtonText: 'OK',
+      cancelButtonText: 'Cancel',
+    })
     await fetch(`${API_BASE}/api/users/logout/`, {
       method: 'POST',
       credentials: 'include',
@@ -192,7 +168,7 @@ const handleLogout = async () => {
   user.value = null
 }
 
-// 获取品牌列表
+// Fetch brand list
 const fetchBrands = async () => {
   try {
     const response = await fetch(`${API_BASE}/api/screenshots/brands/`, {
@@ -205,27 +181,24 @@ const fetchBrands = async () => {
       handleLogout()
     }
   } catch {
-    showToast('获取品牌列表失败')
+    showToast('Failed to load brands')
   }
 }
 
-// 品牌选择
+// Brand selection
 const onBrandConfirm = async ({ selectedValues }) => {
   const brand = selectedValues[0]
   selectedBrand.value = brand
   selectedBrandText.value = brand
-  // 清空下级
+  // Clear child selections
   selectedModel.value = ''
   selectedModelText.value = ''
-  selectedVersion.value = ''
-  selectedVersionText.value = ''
   modelListRaw.value = []
-  versionListRaw.value = []
   searchResults.value = []
   imageUrl.value = ''
   showBrandPicker.value = false
 
-  // 获取型号列表
+  // Fetch model list
   try {
     const response = await fetch(
       `${API_BASE}/api/screenshots/models/?brand=${encodeURIComponent(brand)}`,
@@ -236,57 +209,32 @@ const onBrandConfirm = async ({ selectedValues }) => {
       modelListRaw.value = data.models
     }
   } catch {
-    showToast('获取型号列表失败')
+    showToast('Failed to load models')
   }
 }
 
-// 型号选择
+// Model selection
 const onModelConfirm = async ({ selectedValues }) => {
   const model = selectedValues[0]
   selectedModel.value = model
   selectedModelText.value = model
-  selectedVersion.value = ''
-  selectedVersionText.value = ''
-  versionListRaw.value = []
   searchResults.value = []
   imageUrl.value = ''
   showModelPicker.value = false
-
-  // 获取版本列表
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/screenshots/versions/?brand=${encodeURIComponent(selectedBrand.value)}&model=${encodeURIComponent(model)}`,
-      { credentials: 'include' }
-    )
-    if (response.ok) {
-      const data = await response.json()
-      versionListRaw.value = data.versions
-    }
-  } catch {
-    // ignore
-  }
 }
 
-// 版本选择
-const onVersionConfirm = ({ selectedValues }) => {
-  const ver = selectedValues[0]
-  selectedVersionText.value = ver
-  selectedVersion.value = ver === '全部版本' ? '' : ver
-  showVersionPicker.value = false
-}
-
-// 查询截图
+// Search screenshot
 const queryImage = async () => {
   if (!selectedBrand.value) {
-    showToast('请先选择品牌')
+    showToast('Please select a brand')
     return
   }
   if (!selectedModel.value) {
-    showToast('请先选择机器型号')
+    showToast('Please select a model')
     return
   }
   if (!inputCode.value.trim()) {
-    showToast('请输入截图代码')
+    showToast('Please enter screenshot code')
     return
   }
 
@@ -295,26 +243,23 @@ const queryImage = async () => {
   imageUrl.value = ''
 
   try {
-    let url = `${API_BASE}/api/screenshots/search/?brand=${encodeURIComponent(selectedBrand.value)}&model=${encodeURIComponent(selectedModel.value)}&keyword=${encodeURIComponent(inputCode.value.trim())}`
-    if (selectedVersion.value) {
-      url += `&version=${encodeURIComponent(selectedVersion.value)}`
-    }
+    const url = `${API_BASE}/api/screenshots/search/?brand=${encodeURIComponent(selectedBrand.value)}&model=${encodeURIComponent(selectedModel.value)}&keyword=${encodeURIComponent(inputCode.value.trim())}`
 
     const response = await fetch(url, { credentials: 'include' })
     if (response.ok) {
       const data = await response.json()
       if (data.images.length === 0) {
-        showToast('未找到匹配的截图')
+        showToast('No matching screenshot found')
       } else if (data.images.length === 1) {
         selectImage(data.images[0])
       } else {
         searchResults.value = data.images
       }
     } else {
-      showToast('查询失败')
+      showToast('Query failed')
     }
   } catch {
-    showToast('网络错误')
+    showToast('Network error')
   } finally {
     loading.value = false
   }
@@ -326,7 +271,7 @@ const selectImage = (item) => {
 }
 
 const onImageError = () => {
-  showToast('图片加载失败')
+  showToast('Failed to load image')
   imageUrl.value = ''
 }
 
