@@ -1,0 +1,195 @@
+# Edoc Query System
+
+机器截图查询系统，支持按品牌、型号搜索截图。
+
+## 项目结构
+
+```
+├── screenshot-backend/      # Django 后端
+│   ├── screenshots/         # 截图文件目录（需手动添加）
+│   │   ├── FUJI FILM/       # 品牌目录
+│   │   │   └── Apeos C3060/ # 型号目录
+│   │   │       └── *.jpg    # 截图文件
+│   │   └── FUJI XEROX/
+│   │       └── AP.DC-III C3300G/
+│   │           └── *.jpg
+│   └── ...
+├── machine-screenshot-query/ # Vue 前端
+└── docker-compose.yml
+```
+
+---
+
+## 如何添加新型号
+
+### 1. 目录结构
+
+截图文件存放在 `screenshot-backend/screenshots/` 目录下，结构为：
+
+```
+screenshots/
+├── 品牌名/
+│   └── 型号名/
+│       └── 截图文件.jpg
+```
+
+### 2. 添加步骤
+
+**添加新品牌：**
+```bash
+mkdir -p screenshots/新品牌名
+```
+
+**添加新型号：**
+```bash
+mkdir -p screenshots/品牌名/新型号名
+```
+
+**添加截图文件：**
+将截图文件（jpg/png）放入对应型号目录，文件名即为搜索代码，如：
+- `005-120.jpg` → 搜索 `005-120` 可找到
+- `010-311.jpg` → 搜索 `010` 可找到所有 010 开头的截图
+
+### 3. 示例
+
+添加 FUJI FILM 品牌下的 Apeos C7070 型号：
+
+```bash
+# 服务器上执行
+cd /root/screenshot-app/screenshot-backend
+mkdir -p screenshots/FUJI\ FILM/Apeos\ C7070
+
+# 上传截图文件到该目录
+# 无需重启服务，立即生效
+```
+
+---
+
+## 服务器部署
+
+### 前置要求
+
+- Linux 服务器（Ubuntu/Debian/CentOS）
+- Docker 和 Docker Compose
+- 开放 80 端口
+
+### 部署步骤
+
+**1. 安装 Docker（如未安装）**
+
+```bash
+curl -fsSL https://get.docker.com | sh
+```
+
+**2. 克隆项目**
+
+```bash
+cd /root
+git clone https://github.com/LittleCrabs/screenshot-app.git
+cd screenshot-app
+```
+
+**3. 上传截图文件**
+
+将截图文件上传到 `screenshot-backend/screenshots/` 目录，按品牌/型号组织。
+
+**4. 启动服务**
+
+```bash
+docker-compose up -d --build
+```
+
+**5. 访问**
+
+- 前端：`http://服务器IP/`
+- 后台：`http://服务器IP/admin/`
+- 默认账号：`admin` / `admin123`
+
+### 更新部署
+
+```bash
+cd /root/screenshot-app
+git pull
+docker-compose up -d --build
+```
+
+### 查看日志
+
+```bash
+# 查看所有日志
+docker-compose logs -f
+
+# 只看后端日志
+docker-compose logs -f backend
+```
+
+### 停止服务
+
+```bash
+docker-compose down
+```
+
+---
+
+## 更换服务器
+
+### 1. 备份数据
+
+在旧服务器上：
+
+```bash
+cd /root/screenshot-app
+
+# 备份截图文件
+tar -czvf screenshots-backup.tar.gz screenshot-backend/screenshots/
+
+# 备份数据库（用户数据）
+docker cp screenshot-backend:/app/data/db.sqlite3 ./db-backup.sqlite3
+```
+
+### 2. 迁移到新服务器
+
+```bash
+# 新服务器上安装 Docker
+curl -fsSL https://get.docker.com | sh
+
+# 克隆项目
+cd /root
+git clone https://github.com/LittleCrabs/screenshot-app.git
+cd screenshot-app
+
+# 上传并解压截图备份
+# （通过 scp 或其他方式上传 screenshots-backup.tar.gz）
+tar -xzvf screenshots-backup.tar.gz
+
+# 启动服务
+docker-compose up -d --build
+
+# 如需恢复用户数据，将 db-backup.sqlite3 复制到容器
+docker cp db-backup.sqlite3 screenshot-backend:/app/data/db.sqlite3
+docker-compose restart backend
+```
+
+### 3. 验证
+
+访问 `http://新服务器IP/` 确认服务正常。
+
+---
+
+## 本地开发
+
+```bash
+# 后端
+cd screenshot-backend
+python -m venv venv
+venv\Scripts\activate  # Windows
+pip install -r requirements.txt
+python manage.py migrate
+python init_data.py
+python manage.py runserver
+
+# 前端
+cd machine-screenshot-query
+pnpm install
+pnpm dev
+```
