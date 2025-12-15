@@ -1,0 +1,25 @@
+# Node
+node_modules/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+*.egg-info/
+db.sqlite3
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env.local
+
+# Screenshots data (too large)
+screenshot-backend/screenshots/
