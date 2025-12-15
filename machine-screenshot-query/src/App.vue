@@ -32,7 +32,7 @@
             @click="showModelPicker = true"
             :disabled="!selectedBrand"
           />
-          <!-- 版本选择 -->
+          <!-- 版本选择 
           <van-field
             v-model="selectedVersionText"
             is-link
@@ -41,7 +41,7 @@
             placeholder="全部版本（可选）"
             @click="showVersionPicker = true"
             :disabled="!selectedModel"
-          />
+          />-->
           <!-- 截图代码 -->
           <van-field
             v-model="inputCode"
@@ -128,48 +128,22 @@ import Login from './components/Login.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
 
-// 品牌与型号的映射关系
-const BRAND_MODELS = {
-  'FUJI FILM': [
-    'Apeos C3060.C2560.C2060',
-    'Apeos C3567.C3067.C2567.C3061.C2561.C2061 [FB]',
-    'Apeos C7070',
-    'Apeos C7071 [FB]',
-    'Apeos C8180.C7580.C6580',
-    'ApeosPro C810.C750.C650',
-  ],
-  'FUJI XEROX': [
-    'AP.DC-III C3300G',
-    'AP.DC-IV C5570G',
-    'AP.DC-IV C5575G',
-    'AP.DC-V C7775G',
-    'AP.DC-V C7780G',
-    'AP.DC-V C7785G',
-    'AP.DC-VI C7771G',
-    'AP.DC-VII C7773G',
-    'AP.DC-VII C7788G',
-    'ApeosPort C2060.C2560',
-    'ApeosPort C7070',
-    'ApeosPort.DocuCentre-IV C7780G',
-    'DC-IV C2260',
-    'DC-V C2263G',
-    'DocuCentre SC2020',
-  ],
-}
-
 // 登录状态
 const isLoggedIn = ref(false)
 const user = ref(null)
 
 // 数据
+const brandListRaw = ref([])
+const modelListRaw = ref([])
+const versionListRaw = ref([])
+const searchResults = ref([])
+
 const selectedBrand = ref('')
 const selectedBrandText = ref('')
 const selectedModel = ref('')
 const selectedModelText = ref('')
 const selectedVersion = ref('')
 const selectedVersionText = ref('')
-const versionListRaw = ref([])
-const searchResults = ref([])
 const inputCode = ref('')
 const imageUrl = ref('')
 const loading = ref(false)
@@ -180,18 +154,9 @@ const showModelPicker = ref(false)
 const showVersionPicker = ref(false)
 const showPreview = ref(false)
 
-// 品牌列表
-const brandList = computed(() =>
-  Object.keys(BRAND_MODELS).map((b) => ({ text: b }))
-)
-
-// 根据品牌筛选型号列表
-const modelList = computed(() => {
-  if (!selectedBrand.value) return []
-  return (BRAND_MODELS[selectedBrand.value] || []).map((m) => ({ text: m }))
-})
-
-// 版本列表
+// Picker 数据格式
+const brandList = computed(() => brandListRaw.value.map((b) => ({ text: b })))
+const modelList = computed(() => modelListRaw.value.map((m) => ({ text: m })))
 const versionColumns = computed(() => [
   { text: '全部版本' },
   ...versionListRaw.value.map((v) => ({ text: v })),
@@ -202,12 +167,14 @@ onMounted(() => {
   if (savedUser) {
     user.value = JSON.parse(savedUser)
     isLoggedIn.value = true
+    fetchBrands()
   }
 })
 
 const onLoginSuccess = (userData) => {
   user.value = userData
   isLoggedIn.value = true
+  fetchBrands()
 }
 
 const handleLogout = async () => {
@@ -225,20 +192,52 @@ const handleLogout = async () => {
   user.value = null
 }
 
+// 获取品牌列表
+const fetchBrands = async () => {
+  try {
+    const response = await fetch(`${API_BASE}/api/screenshots/brands/`, {
+      credentials: 'include',
+    })
+    if (response.ok) {
+      const data = await response.json()
+      brandListRaw.value = data.brands
+    } else if (response.status === 401 || response.status === 403) {
+      handleLogout()
+    }
+  } catch {
+    showToast('获取品牌列表失败')
+  }
+}
+
 // 品牌选择
-const onBrandConfirm = ({ selectedValues }) => {
+const onBrandConfirm = async ({ selectedValues }) => {
   const brand = selectedValues[0]
   selectedBrand.value = brand
   selectedBrandText.value = brand
-  // 清空下级选择
+  // 清空下级
   selectedModel.value = ''
   selectedModelText.value = ''
   selectedVersion.value = ''
   selectedVersionText.value = ''
+  modelListRaw.value = []
   versionListRaw.value = []
   searchResults.value = []
   imageUrl.value = ''
   showBrandPicker.value = false
+
+  // 获取型号列表
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/screenshots/models/?brand=${encodeURIComponent(brand)}`,
+      { credentials: 'include' }
+    )
+    if (response.ok) {
+      const data = await response.json()
+      modelListRaw.value = data.models
+    }
+  } catch {
+    showToast('获取型号列表失败')
+  }
 }
 
 // 型号选择
@@ -256,7 +255,7 @@ const onModelConfirm = async ({ selectedValues }) => {
   // 获取版本列表
   try {
     const response = await fetch(
-      `${API_BASE}/api/screenshots/versions/?model=${encodeURIComponent(model)}`,
+      `${API_BASE}/api/screenshots/versions/?brand=${encodeURIComponent(selectedBrand.value)}&model=${encodeURIComponent(model)}`,
       { credentials: 'include' }
     )
     if (response.ok) {
@@ -278,6 +277,10 @@ const onVersionConfirm = ({ selectedValues }) => {
 
 // 查询截图
 const queryImage = async () => {
+  if (!selectedBrand.value) {
+    showToast('请先选择品牌')
+    return
+  }
   if (!selectedModel.value) {
     showToast('请先选择机器型号')
     return
@@ -292,7 +295,7 @@ const queryImage = async () => {
   imageUrl.value = ''
 
   try {
-    let url = `${API_BASE}/api/screenshots/search/?model=${encodeURIComponent(selectedModel.value)}&keyword=${encodeURIComponent(inputCode.value.trim())}`
+    let url = `${API_BASE}/api/screenshots/search/?brand=${encodeURIComponent(selectedBrand.value)}&model=${encodeURIComponent(selectedModel.value)}&keyword=${encodeURIComponent(inputCode.value.trim())}`
     if (selectedVersion.value) {
       url += `&version=${encodeURIComponent(selectedVersion.value)}`
     }
