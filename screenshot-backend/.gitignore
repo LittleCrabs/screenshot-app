@@ -16,4 +16,5 @@ db.sqlite3
 .env
 .DS_Store
 media/
-screenshots/
+# 只忽略图片数据目录，不忽略 apps/screenshots 代码
+/screenshots/
