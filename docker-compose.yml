@@ -1,11 +1,9 @@
-version: '3.8'
-
 services:
   backend:
     build: ./screenshot-backend
     container_name: screenshot-backend
     volumes:
-      - ./screenshot-backend/db.sqlite3:/app/db.sqlite3
+      - backend_data:/app/data
       - ./screenshot-backend/screenshots:/app/screenshots
     environment:
       - DEBUG=False
@@ -19,3 +17,6 @@ services:
     depends_on:
       - backend
     restart: unless-stopped
+
+volumes:
+  backend_data:
