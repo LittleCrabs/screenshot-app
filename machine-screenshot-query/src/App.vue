@@ -4,7 +4,7 @@
 
     <div v-else>
       <!-- Top Navigation -->
-      <van-nav-bar title="Screenshot Query" fixed placeholder>
+      <van-nav-bar title="Edoc Query" fixed placeholder>
         <template #right>
           <span class="logout-text" @click="handleLogout">Logout</span>
         </template>

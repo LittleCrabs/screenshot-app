@@ -1,7 +1,7 @@
 <template>
   <div class="login-page">
     <div class="login-header">
-      <h2>Screenshot Query System</h2>
+      <h2>Edoc Query System</h2>
     </div>
     <van-form @submit="handleLogin" class="login-form">
       <van-cell-group inset>
@@ -27,6 +27,11 @@
         </van-button>
       </div>
     </van-form>
+    <div class="notice-box">
+      <strong>Important Notice</strong>
+      <p>All resources provided by the Edoc query system are from the internet.</p>
+      <p>I assume no legal responsibility for any content in this software!</p>
+    </div>
   </div>
 </template>
 
@@ -75,9 +80,12 @@ const handleLogin = async () => {
 
 <style scoped>
 .login-page {
-  min-height: 100vh;
+  height: 100vh;
   background: #f7f8fa;
-  padding-top: 100px;
+  padding: 60px 0 20px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
 }
 
 .login-header {
@@ -97,5 +105,25 @@ const handleLogin = async () => {
 
 .login-btn-wrap {
   margin: 24px 16px;
+}
+
+.notice-box {
+  margin: auto 16px 20px;
+  padding: 12px;
+  border: 2px solid #ee0a24;
+    color: #ee0a24;
+
+  border-radius: 8px;
+  background: #fff;
+    text-align: center;
+
+}
+
+.notice-box p {
+  color: #ee0a24;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+  text-align: left;
 }
 </style>
