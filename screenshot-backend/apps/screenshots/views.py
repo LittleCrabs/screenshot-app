@@ -1,5 +1,6 @@
 from pathlib import Path
 from django.conf import settings
+from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -28,7 +29,7 @@ class ModelListView(APIView):
     def get(self, request):
         brand = request.query_params.get('brand', '')
         if not brand:
-            return Response({'error': '请指定品牌'}, status=400)
+            return Response({'error': 'Please specify brand'}, status=400)
 
         brand_dir = settings.SCREENSHOTS_ROOT / brand
         models = []
@@ -50,7 +51,7 @@ class VersionListView(APIView):
         model = request.query_params.get('model', '')
 
         if not brand or not model:
-            return Response({'error': '请指定品牌和型号'}, status=400)
+            return Response({'error': 'Please specify brand and model'}, status=400)
 
         model_dir = settings.SCREENSHOTS_ROOT / brand / model
         versions = []
@@ -74,9 +75,9 @@ class ImageSearchView(APIView):
         keyword = request.query_params.get('keyword', '')
 
         if not brand or not model:
-            return Response({'error': '请指定品牌和型号'}, status=400)
+            return Response({'error': 'Please specify brand and model'}, status=400)
         if not keyword:
-            return Response({'error': '请输入搜索关键词'}, status=400)
+            return Response({'error': 'Please enter search keyword'}, status=400)
 
         # 构建目录路径
         if version:
@@ -106,3 +107,53 @@ class ImageSearchView(APIView):
                     })
 
         return sorted(images, key=lambda x: x['name'])
+
+
+class HtmlListView(APIView):
+    """获取品牌目录下的 HTML 文件列表"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand = request.query_params.get('brand', '')
+        if not brand:
+            return Response({'error': 'Please specify brand'}, status=400)
+
+        brand_dir = settings.SCREENSHOTS_ROOT / brand
+        html_files = []
+
+        if brand_dir.exists():
+            for item in sorted(brand_dir.glob('*.html')):
+                if item.is_file():
+                    html_files.append({
+                        'name': item.stem,
+                        'filename': item.name,
+                    })
+
+        return Response({'files': html_files})
+
+
+class HtmlContentView(APIView):
+    """获取 HTML 文件内容"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand = request.query_params.get('brand', '')
+        filename = request.query_params.get('filename', '')
+
+        if not brand or not filename:
+            return Response({'error': 'Please specify brand and filename'}, status=400)
+
+        # 安全检查，防止路径遍历
+        if '..' in filename or '/' in filename or '\\' in filename:
+            return Response({'error': 'Invalid filename'}, status=400)
+
+        file_path = settings.SCREENSHOTS_ROOT / brand / filename
+
+        if not file_path.exists() or not file_path.is_file():
+            return Response({'error': 'File not found'}, status=404)
+
+        try:
+            content = file_path.read_text(encoding='utf-8')
+            return Response({'content': content})
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)

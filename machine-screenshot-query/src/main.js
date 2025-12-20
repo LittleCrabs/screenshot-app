@@ -13,6 +13,8 @@ import {
   ImagePreview,
   Toast,
   Dialog,
+  Radio,
+  RadioGroup,
 } from 'vant'
 import 'vant/lib/index.css'
 import './style.css'
@@ -34,5 +36,7 @@ app.use(VanImage)
 app.use(ImagePreview)
 app.use(Toast)
 app.use(Dialog)
+app.use(Radio)
+app.use(RadioGroup)
 
 app.mount('#app')

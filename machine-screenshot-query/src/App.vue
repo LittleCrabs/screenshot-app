@@ -11,65 +11,100 @@
       </van-nav-bar>
 
       <div class="main-content">
-        <!-- Query Conditions -->
-        <van-cell-group inset title="Query">
-          <!-- Brand Selection -->
-          <van-field
-            v-model="selectedBrandText"
-            is-link
-            readonly
-            label="Brand"
-            placeholder="Select brand (required)"
-            @click="showBrandPicker = true"
-          />
-          <!-- Model Selection -->
-          <van-field
-            v-model="selectedModelText"
-            is-link
-            readonly
-            label="Model"
-            placeholder="Select model (required)"
-            @click="showModelPicker = true"
-            :disabled="!selectedBrand"
-          />
-          <!-- Screenshot Code -->
-          <van-field
-            v-model="inputCode"
-            label="Code"
-            placeholder="e.g. 005-120"
-            clearable
-            @keyup.enter="queryImage"
-          />
+        <!-- Mode Switch -->
+        <van-cell-group inset title="Mode">
+          <van-radio-group v-model="queryMode" direction="horizontal" class="mode-radio">
+            <van-radio name="errorCode">Error Code</van-radio>
+            <van-radio name="ioCheck">Component IO Check</van-radio>
+          </van-radio-group>
         </van-cell-group>
 
-        <div class="query-btn-wrap">
-          <van-button type="primary" block round :loading="loading" @click="queryImage">
-            Search
-          </van-button>
-        </div>
-
-        <!-- Search Results -->
-        <van-cell-group inset title="Results" v-if="searchResults.length > 0">
-          <van-cell
-            v-for="item in searchResults"
-            :key="item.path"
-            :title="item.name"
-            is-link
-            @click="selectImage(item)"
-          />
-        </van-cell-group>
-
-        <!-- Image Preview -->
-        <van-cell-group inset title="Preview" v-if="imageUrl">
-          <div class="image-preview">
-            <van-image
-              :src="imageUrl"
-              fit="contain"
-              @click="previewImage"
-              @error="onImageError"
+        <!-- Error Code Mode -->
+        <template v-if="queryMode === 'errorCode'">
+          <van-cell-group inset title="Query">
+            <van-field
+              v-model="selectedBrandText"
+              is-link
+              readonly
+              label="Brand"
+              placeholder="Select brand (required)"
+              @click="showBrandPicker = true"
             />
+            <van-field
+              v-model="selectedModelText"
+              is-link
+              readonly
+              label="Model"
+              placeholder="Select model (required)"
+              @click="showModelPicker = true"
+              :disabled="!selectedBrand"
+            />
+            <van-field
+              v-model="inputCode"
+              label="Code"
+              placeholder="e.g. 005-120"
+              clearable
+              @keyup.enter="queryImage"
+            />
+          </van-cell-group>
+
+          <div class="query-btn-wrap">
+            <van-button type="primary" block round :loading="loading" @click="queryImage">
+              Search
+            </van-button>
           </div>
-        </van-cell-group>
+
+          <!-- Search Results -->
+          <van-cell-group inset title="Results" v-if="searchResults.length > 0">
+            <van-cell
+              v-for="item in searchResults"
+              :key="item.path"
+              :title="item.name"
+              is-link
+              @click="selectImage(item)"
+            />
+          </van-cell-group>
+
+          <!-- Image Preview -->
+          <van-cell-group inset title="Preview" v-if="imageUrl">
+            <div class="image-preview">
+              <van-image
+                :src="imageUrl"
+                fit="contain"
+                @click="previewImage"
+                @error="onImageError"
+              />
+            </div>
+          </van-cell-group>
+        </template>
+
+        <!-- Component IO Check Mode -->
+        <template v-if="queryMode === 'ioCheck'">
+          <van-cell-group inset title="Query">
+            <van-field
+              v-model="selectedBrandText"
+              is-link
+              readonly
+              label="Brand"
+              placeholder="Select brand (required)"
+              @click="showBrandPicker = true"
+            />
+            <van-field
+              v-model="selectedFileText"
+              is-link
+              readonly
+              label="File"
+              placeholder="Select file (required)"
+              @click="showFilePicker = true"
+              :disabled="!selectedBrand"
+            />
+          </van-cell-group>
+
+          <!-- HTML Content -->
+          <van-cell-group inset title="Content" v-if="htmlContent">
+            <div class="html-content" v-html="htmlContent"></div>
+          </van-cell-group>
+        </template>
       </div>
 
       <!-- Brand Picker -->
@@ -94,6 +129,17 @@
         />
       </van-popup>
 
+      <!-- File Picker -->
+      <van-popup v-model:show="showFilePicker" position="bottom" round>
+        <van-picker
+          :columns="fileList"
+          :columns-field-names="{ text: 'text', value: 'text' }"
+          @confirm="onFileConfirm"
+          @cancel="showFilePicker = false"
+          title="Select File"
+        />
+      </van-popup>
+
       <!-- Image Preview -->
       <van-image-preview v-model:show="showPreview" :images="[imageUrl]" />
     </div>
@@ -101,7 +147,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { showToast, showDialog } from 'vant'
 import Login from './components/Login.vue'
 
@@ -111,10 +157,17 @@ const API_BASE = import.meta.env.VITE_API_BASE || ''
 const isLoggedIn = ref(false)
 const user = ref(null)
 
+// Query mode
+const queryMode = ref('errorCode')
+
 // Data
 const brandListRaw = ref([])
 const modelListRaw = ref([])
 const searchResults = ref([])
+const htmlFiles = ref([])
+const htmlContent = ref('')
+const selectedHtmlFile = ref('')
+const selectedFileText = ref('')
 
 const selectedBrand = ref('')
 const selectedBrandText = ref('')
@@ -127,11 +180,29 @@ const loading = ref(false)
 // Popup control
 const showBrandPicker = ref(false)
 const showModelPicker = ref(false)
+const showFilePicker = ref(false)
 const showPreview = ref(false)
 
 // Picker data format
 const brandList = computed(() => brandListRaw.value.map((b) => ({ text: b })))
 const modelList = computed(() => modelListRaw.value.map((m) => ({ text: m })))
+const fileList = computed(() => htmlFiles.value.map((f) => ({ text: f.name, filename: f.filename })))
+
+// Watch mode change to reset data
+watch(queryMode, () => {
+  selectedBrand.value = ''
+  selectedBrandText.value = ''
+  selectedModel.value = ''
+  selectedModelText.value = ''
+  modelListRaw.value = []
+  searchResults.value = []
+  imageUrl.value = ''
+  htmlFiles.value = []
+  htmlContent.value = ''
+  selectedHtmlFile.value = ''
+  selectedFileText.value = ''
+  inputCode.value = ''
+})
 
 onMounted(() => {
   const savedUser = localStorage.getItem('user')
@@ -190,26 +261,50 @@ const onBrandConfirm = async ({ selectedValues }) => {
   const brand = selectedValues[0]
   selectedBrand.value = brand
   selectedBrandText.value = brand
+  showBrandPicker.value = false
+
   // Clear child selections
   selectedModel.value = ''
   selectedModelText.value = ''
   modelListRaw.value = []
   searchResults.value = []
   imageUrl.value = ''
-  showBrandPicker.value = false
+  htmlFiles.value = []
+  htmlContent.value = ''
+  selectedHtmlFile.value = ''
+  selectedFileText.value = ''
 
-  // Fetch model list
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/screenshots/models/?brand=${encodeURIComponent(brand)}`,
-      { credentials: 'include' }
-    )
-    if (response.ok) {
-      const data = await response.json()
-      modelListRaw.value = data.models
+  if (queryMode.value === 'errorCode') {
+    // Fetch model list
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/screenshots/models/?brand=${encodeURIComponent(brand)}`,
+        { credentials: 'include' }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        modelListRaw.value = data.models
+      }
+    } catch {
+      showToast('Failed to load models')
     }
-  } catch {
-    showToast('Failed to load models')
+  } else {
+    // Fetch HTML file list
+    try {
+      const response = await fetch(
+        `${API_BASE}/api/screenshots/html-list/?brand=${encodeURIComponent(brand)}`,
+        { credentials: 'include' }
+      )
+      if (response.ok) {
+        const data = await response.json()
+        htmlFiles.value = data.files
+        if (data.files.length === 0) {
+          showToast('No HTML files found')
+        }
+      }
+    } catch {
+      showToast('Failed to load files')
+    }
   }
 }
 
@@ -221,6 +316,35 @@ const onModelConfirm = async ({ selectedValues }) => {
   searchResults.value = []
   imageUrl.value = ''
   showModelPicker.value = false
+}
+
+// Load HTML content
+const loadHtmlContent = async (filename) => {
+  htmlContent.value = ''
+
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/screenshots/html-content/?brand=${encodeURIComponent(selectedBrand.value)}&filename=${encodeURIComponent(filename)}`,
+      { credentials: 'include' }
+    )
+    if (response.ok) {
+      const data = await response.json()
+      htmlContent.value = data.content
+    } else {
+      showToast('Failed to load content')
+    }
+  } catch {
+    showToast('Network error')
+  }
+}
+
+// File selection
+const onFileConfirm = async ({ selectedOptions }) => {
+  const file = selectedOptions[0]
+  selectedHtmlFile.value = file.filename
+  selectedFileText.value = file.text
+  showFilePicker.value = false
+  await loadHtmlContent(file.filename)
 }
 
 // Search screenshot
@@ -298,6 +422,10 @@ const previewImage = () => {
   padding: 12px 0;
 }
 
+.mode-radio {
+  padding: 12px 16px;
+}
+
 .query-btn-wrap {
   padding: 16px;
 }
@@ -309,5 +437,22 @@ const previewImage = () => {
 .image-preview :deep(.van-image) {
   width: 100%;
   min-height: 200px;
+}
+
+.html-content {
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.html-content :deep(table) {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.html-content :deep(td),
+.html-content :deep(th) {
+  border: 1px solid #ddd;
+  padding: 6px;
 }
 </style>
