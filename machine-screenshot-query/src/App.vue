@@ -328,8 +328,8 @@ const loadHtmlContent = async (filename) => {
       { credentials: 'include' }
     )
     if (response.ok) {
-      const data = await response.json()
-      htmlContent.value = data.content
+      const responseData = await response.json()
+      htmlContent.value = responseData.content
 
       // 执行 HTML 中的脚本
       setTimeout(() => {
@@ -341,7 +341,14 @@ const loadHtmlContent = async (filename) => {
             if (oldScript.src) {
               newScript.src = oldScript.src
             } else {
-              newScript.textContent = oldScript.textContent
+              // 移除 DOMContentLoaded 监听，直接执行渲染函数
+              let scriptContent = oldScript.textContent
+              // 替换 DOMContentLoaded 事件为立即执行
+              scriptContent = scriptContent.replace(
+                /window\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\(\s*\)\s*\{([^}]*)\}\s*\)\s*;?/g,
+                '$1'
+              )
+              newScript.textContent = `(function() { ${scriptContent} })();`
             }
             oldScript.parentNode.replaceChild(newScript, oldScript)
           })
