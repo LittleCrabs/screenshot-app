@@ -335,21 +335,10 @@ const loadHtmlContent = async (filename) => {
       setTimeout(() => {
         const container = document.querySelector('.html-content')
         if (container) {
-          const scripts = container.querySelectorAll('script')
+          const scripts = container.querySelectorAll('script:not([type])')
           scripts.forEach((oldScript) => {
             const newScript = document.createElement('script')
-            if (oldScript.src) {
-              newScript.src = oldScript.src
-            } else {
-              // 移除 DOMContentLoaded 监听，直接执行渲染函数
-              let scriptContent = oldScript.textContent
-              // 替换 DOMContentLoaded 事件为立即执行
-              scriptContent = scriptContent.replace(
-                /window\.addEventListener\s*\(\s*['"]DOMContentLoaded['"]\s*,\s*function\s*\(\s*\)\s*\{([^}]*)\}\s*\)\s*;?/g,
-                '$1'
-              )
-              newScript.textContent = `(function() { ${scriptContent} })();`
-            }
+            newScript.textContent = oldScript.textContent
             oldScript.parentNode.replaceChild(newScript, oldScript)
           })
         }

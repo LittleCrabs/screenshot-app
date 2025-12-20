@@ -110,7 +110,7 @@ class ImageSearchView(APIView):
 
 
 class HtmlListView(APIView):
-    """获取品牌目录下的 HTML 文件列表"""
+    """获取品牌目录下的 JSON 数据文件列表"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -118,22 +118,23 @@ class HtmlListView(APIView):
         if not brand:
             return Response({'error': 'Please specify brand'}, status=400)
 
-        brand_dir = settings.SCREENSHOTS_ROOT / brand
-        html_files = []
+        data_dir = settings.SCREENSHOTS_ROOT / brand / 'data'
+        files = []
 
-        if brand_dir.exists():
-            for item in sorted(brand_dir.glob('*.html')):
+        if data_dir.exists():
+            for item in sorted(data_dir.glob('*.json')):
                 if item.is_file():
-                    html_files.append({
-                        'name': item.stem,
+                    name = item.stem.replace('_', ' ')
+                    files.append({
+                        'name': name,
                         'filename': item.name,
                     })
 
-        return Response({'files': html_files})
+        return Response({'files': files})
 
 
 class HtmlContentView(APIView):
-    """获取 HTML 文件内容"""
+    """获取 HTML 文件内容（JSON 数据 + 模板）"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -147,13 +148,25 @@ class HtmlContentView(APIView):
         if '..' in filename or '/' in filename or '\\' in filename:
             return Response({'error': 'Invalid filename'}, status=400)
 
-        file_path = settings.SCREENSHOTS_ROOT / brand / filename
+        brand_dir = settings.SCREENSHOTS_ROOT / brand
+        json_path = brand_dir / 'data' / filename
+        template_path = brand_dir / 'template.html'
 
-        if not file_path.exists() or not file_path.is_file():
-            return Response({'error': 'File not found'}, status=404)
+        if not json_path.exists():
+            return Response({'error': 'Data file not found'}, status=404)
+        if not template_path.exists():
+            return Response({'error': 'Template not found'}, status=404)
 
         try:
-            content = file_path.read_text(encoding='utf-8')
+            json_content = json_path.read_text(encoding='utf-8')
+            template_content = template_path.read_text(encoding='utf-8')
+
+            # 在模板的 jsonData script 标签中注入数据
+            content = template_content.replace(
+                '<script id="jsonData" type="application/json"></script>',
+                f'<script id="jsonData" type="application/json">{json_content}</script>'
+            )
+
             return Response({'content': content})
         except Exception as e:
             return Response({'error': str(e)}, status=500)
