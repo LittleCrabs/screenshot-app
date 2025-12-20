@@ -338,7 +338,8 @@ const loadHtmlContent = async (filename) => {
           const scripts = container.querySelectorAll('script:not([type])')
           scripts.forEach((oldScript) => {
             const newScript = document.createElement('script')
-            newScript.textContent = oldScript.textContent
+            // 用 IIFE 包装避免变量污染全局作用域
+            newScript.textContent = `(function(){${oldScript.textContent}})();`
             oldScript.parentNode.replaceChild(newScript, oldScript)
           })
         }
