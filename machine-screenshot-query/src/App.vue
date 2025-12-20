@@ -330,6 +330,23 @@ const loadHtmlContent = async (filename) => {
     if (response.ok) {
       const data = await response.json()
       htmlContent.value = data.content
+
+      // 执行 HTML 中的脚本
+      setTimeout(() => {
+        const container = document.querySelector('.html-content')
+        if (container) {
+          const scripts = container.querySelectorAll('script')
+          scripts.forEach((oldScript) => {
+            const newScript = document.createElement('script')
+            if (oldScript.src) {
+              newScript.src = oldScript.src
+            } else {
+              newScript.textContent = oldScript.textContent
+            }
+            oldScript.parentNode.replaceChild(newScript, oldScript)
+          })
+        }
+      }, 100)
     } else {
       showToast('Failed to load content')
     }
