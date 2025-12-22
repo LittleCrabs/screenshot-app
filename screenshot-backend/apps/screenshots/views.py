@@ -36,7 +36,8 @@ class ModelListView(APIView):
 
         if brand_dir.exists():
             for item in sorted(brand_dir.iterdir()):
-                if item.is_dir() and not item.name.startswith('.'):
+                # 排除隐藏目录和 data 目录
+                if item.is_dir() and not item.name.startswith('.') and item.name != 'data':
                     models.append(item.name)
 
         return Response({'models': models})
