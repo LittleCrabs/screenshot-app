@@ -1,78 +1,76 @@
 from pathlib import Path
 from django.conf import settings
-from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 
-class BrandListView(APIView):
-    """获取品牌列表（一级目录）"""
+class ModeListView(APIView):
+    """获取模式列表（一级目录）"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         screenshots_dir = settings.SCREENSHOTS_ROOT
-        brands = []
+        modes = []
 
         if screenshots_dir.exists():
             for item in sorted(screenshots_dir.iterdir()):
                 if item.is_dir() and not item.name.startswith('.'):
+                    modes.append(item.name)
+
+        return Response({'modes': modes})
+
+
+class BrandListView(APIView):
+    """获取品牌列表（二级目录）"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        mode = request.query_params.get('mode', '')
+        if not mode:
+            return Response({'error': 'Please specify mode'}, status=400)
+
+        mode_dir = settings.SCREENSHOTS_ROOT / mode
+        brands = []
+
+        if mode_dir.exists():
+            for item in sorted(mode_dir.iterdir()):
+                if item.is_dir() and not item.name.startswith('.') and item.name != 'data':
                     brands.append(item.name)
 
         return Response({'brands': brands})
 
 
 class ModelListView(APIView):
-    """获取型号列表（二级目录）"""
+    """获取型号列表（三级目录，仅 Error Code 模式）"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        mode = request.query_params.get('mode', '')
         brand = request.query_params.get('brand', '')
-        if not brand:
-            return Response({'error': 'Please specify brand'}, status=400)
 
-        brand_dir = settings.SCREENSHOTS_ROOT / brand
+        if not mode or not brand:
+            return Response({'error': 'Please specify mode and brand'}, status=400)
+
+        brand_dir = settings.SCREENSHOTS_ROOT / mode / brand
         models = []
 
         if brand_dir.exists():
             for item in sorted(brand_dir.iterdir()):
-                # 排除隐藏目录和 data 目录
                 if item.is_dir() and not item.name.startswith('.') and item.name != 'data':
                     models.append(item.name)
 
         return Response({'models': models})
 
 
-class VersionListView(APIView):
-    """获取版本列表（三级目录）"""
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        brand = request.query_params.get('brand', '')
-        model = request.query_params.get('model', '')
-
-        if not brand or not model:
-            return Response({'error': 'Please specify brand and model'}, status=400)
-
-        model_dir = settings.SCREENSHOTS_ROOT / brand / model
-        versions = []
-
-        if model_dir.exists():
-            for item in sorted(model_dir.iterdir()):
-                if item.is_dir() and not item.name.startswith('.'):
-                    versions.append(item.name)
-
-        return Response({'versions': versions})
-
-
 class ImageSearchView(APIView):
-    """搜索图片"""
+    """搜索图片（Error Code 模式）"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        mode = request.query_params.get('mode', 'Error Code')
         brand = request.query_params.get('brand', '')
         model = request.query_params.get('model', '')
-        version = request.query_params.get('version', '')
         keyword = request.query_params.get('keyword', '')
 
         if not brand or not model:
@@ -80,19 +78,15 @@ class ImageSearchView(APIView):
         if not keyword:
             return Response({'error': 'Please enter search keyword'}, status=400)
 
-        # 构建目录路径
-        if version:
-            target_dir = settings.SCREENSHOTS_ROOT / brand / model / version
-        else:
-            target_dir = settings.SCREENSHOTS_ROOT / brand / model
+        target_dir = settings.SCREENSHOTS_ROOT / mode / brand / model
 
         images = []
         if target_dir.exists():
-            images = self._search_images(target_dir, keyword, brand)
+            images = self._search_images(target_dir, keyword)
 
         return Response({'images': images})
 
-    def _search_images(self, directory, keyword, brand):
+    def _search_images(self, directory, keyword):
         """递归搜索匹配关键词的图片"""
         images = []
         image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'}
@@ -110,8 +104,8 @@ class ImageSearchView(APIView):
         return sorted(images, key=lambda x: x['name'])
 
 
-class HtmlListView(APIView):
-    """获取品牌目录下的 JSON 数据文件列表"""
+class ComponentListView(APIView):
+    """获取 Component IO Check 的 JSON 文件列表"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -119,7 +113,7 @@ class HtmlListView(APIView):
         if not brand:
             return Response({'error': 'Please specify brand'}, status=400)
 
-        data_dir = settings.SCREENSHOTS_ROOT / brand / 'data'
+        data_dir = settings.SCREENSHOTS_ROOT / 'Component IO Check' / brand
         files = []
 
         if data_dir.exists():
@@ -134,8 +128,8 @@ class HtmlListView(APIView):
         return Response({'files': files})
 
 
-class HtmlContentView(APIView):
-    """获取 HTML 文件内容（JSON 数据 + 模板）"""
+class ComponentContentView(APIView):
+    """获取 Component IO Check 的 JSON 数据"""
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -145,29 +139,49 @@ class HtmlContentView(APIView):
         if not brand or not filename:
             return Response({'error': 'Please specify brand and filename'}, status=400)
 
-        # 安全检查，防止路径遍历
         if '..' in filename or '/' in filename or '\\' in filename:
             return Response({'error': 'Invalid filename'}, status=400)
 
-        brand_dir = settings.SCREENSHOTS_ROOT / brand
-        json_path = brand_dir / 'data' / filename
-        template_path = brand_dir / 'template.html'
+        json_path = settings.SCREENSHOTS_ROOT / 'Component IO Check' / brand / filename
 
         if not json_path.exists():
             return Response({'error': 'Data file not found'}, status=404)
-        if not template_path.exists():
-            return Response({'error': 'Template not found'}, status=404)
 
         try:
+            import json
             json_content = json_path.read_text(encoding='utf-8')
-            template_content = template_path.read_text(encoding='utf-8')
-
-            # 在模板的 jsonData script 标签中注入数据
-            content = template_content.replace(
-                '<script id="jsonData" type="application/json"></script>',
-                f'<script id="jsonData" type="application/json">{json_content}</script>'
-            )
-
-            return Response({'content': content})
+            data = json.loads(json_content)
+            return Response(data)
         except Exception as e:
             return Response({'error': str(e)}, status=500)
+
+
+class VideoListView(APIView):
+    """获取 Video Tutorial 的视频列表"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        brand = request.query_params.get('brand', '')
+        keyword = request.query_params.get('keyword', '').strip().lower()
+
+        if not brand:
+            return Response({'error': 'Please specify brand'}, status=400)
+
+        video_dir = settings.SCREENSHOTS_ROOT / 'Video Tutorial' / brand
+        videos = []
+        video_extensions = {'.mp4', '.webm', '.mov', '.avi', '.mkv'}
+
+        if video_dir.exists():
+            for item in sorted(video_dir.glob('*')):
+                if item.is_file() and item.suffix.lower() in video_extensions:
+                    # 如果有关键词，过滤文件名
+                    if keyword and keyword not in item.stem.lower():
+                        continue
+                    rel_path = item.relative_to(settings.SCREENSHOTS_ROOT)
+                    videos.append({
+                        'name': item.stem,
+                        'filename': item.name,
+                        'path': f'/screenshots/{rel_path.as_posix()}',
+                    })
+
+        return Response({'videos': videos})
