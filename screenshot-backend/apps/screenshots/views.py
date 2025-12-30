@@ -3,6 +3,7 @@ from django.conf import settings
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from apps.users.models import VideoUploadRecord, QueryLog
 
 
 class ModeListView(APIView):
@@ -84,6 +85,14 @@ class ImageSearchView(APIView):
         if target_dir.exists():
             images = self._search_images(target_dir, keyword)
 
+        # 记录查询日志
+        QueryLog.objects.create(
+            user=request.user,
+            mode='Error Code',
+            brand=brand,
+            keyword=keyword
+        )
+
         return Response({'images': images})
 
     def _search_images(self, directory, keyword):
@@ -147,6 +156,14 @@ class ComponentContentView(APIView):
         if not json_path.exists():
             return Response({'error': 'Data file not found'}, status=404)
 
+        # 记录查询日志
+        QueryLog.objects.create(
+            user=request.user,
+            mode='Component IO Check',
+            brand=brand,
+            keyword=filename
+        )
+
         try:
             import json
             json_content = json_path.read_text(encoding='utf-8')
@@ -184,4 +201,101 @@ class VideoListView(APIView):
                         'path': f'/screenshots/{rel_path.as_posix()}',
                     })
 
+        # 记录查询日志
+        QueryLog.objects.create(
+            user=request.user,
+            mode='Video Tutorial',
+            brand=brand,
+            keyword=keyword
+        )
+
         return Response({'videos': videos})
+
+
+class VideoUploadView(APIView):
+    """上传视频到 Pending Video 目录"""
+    permission_classes = [IsAuthenticated]
+
+    ALLOWED_BRANDS = ['FUJI XEROX', 'FUJI FILM', 'Canon']
+
+    def post(self, request):
+        brand = request.data.get('brand', '')
+        model = request.data.get('model', '').strip()
+        title = request.data.get('title', '').strip()
+        video_file = request.FILES.get('video')
+
+        if not brand or brand not in self.ALLOWED_BRANDS:
+            return Response({'error': 'Invalid brand'}, status=400)
+        if not model:
+            return Response({'error': 'Please enter model'}, status=400)
+        if not title:
+            return Response({'error': 'Please enter video title'}, status=400)
+        if not video_file:
+            return Response({'error': 'Please select a video file'}, status=400)
+
+        # 检查文件类型
+        video_extensions = {'.mp4', '.webm', '.mov', '.avi', '.mkv'}
+        ext = Path(video_file.name).suffix.lower()
+        if ext not in video_extensions:
+            return Response({'error': 'Invalid video format'}, status=400)
+
+        # 创建目录
+        pending_dir = settings.SCREENSHOTS_ROOT / 'Video Tutorial' / 'Pending Video' / brand
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成文件名: Model_Title_username.ext
+        safe_model = model.replace(' ', '_').replace('/', '_')
+        safe_title = title.replace(' ', '_').replace('/', '_')
+        username = request.user.username
+        filename = f"{safe_model}_{safe_title}_{username}{ext}"
+        file_path = pending_dir / filename
+
+        # 如果文件已存在，添加数字后缀
+        counter = 1
+        while file_path.exists():
+            filename = f"{safe_model}_{safe_title}_{username}_{counter}{ext}"
+            file_path = pending_dir / filename
+            counter += 1
+
+        # 保存文件
+        try:
+            with open(file_path, 'wb+') as dest:
+                for chunk in video_file.chunks():
+                    dest.write(chunk)
+            
+            # 记录上传记录
+            VideoUploadRecord.objects.create(
+                user=request.user,
+                brand=brand,
+                model=model,
+                title=title,
+                filename=filename,
+                file_path=str(file_path)
+            )
+            
+            return Response({
+                'message': 'Upload successful',
+                'filename': filename,
+                'brand': brand,
+                'model': model,
+                'title': title
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class MyUploadsView(APIView):
+    """获取当前用户上传的视频列表"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        uploads = VideoUploadRecord.objects.filter(user=request.user).order_by('-created_at')
+        data = [{
+            'id': u.id,
+            'brand': u.brand,
+            'model': u.model,
+            'title': u.title,
+            'filename': u.filename,
+            'created_at': u.created_at.strftime('%Y-%m-%d %H:%M')
+        } for u in uploads]
+        return Response({'uploads': data, 'count': len(data)})

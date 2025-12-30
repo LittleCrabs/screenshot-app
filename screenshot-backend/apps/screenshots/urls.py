@@ -9,4 +9,6 @@ urlpatterns = [
     path('components/', views.ComponentListView.as_view(), name='component-list'),
     path('component-data/', views.ComponentContentView.as_view(), name='component-data'),
     path('videos/', views.VideoListView.as_view(), name='video-list'),
+    path('upload-video/', views.VideoUploadView.as_view(), name='upload-video'),
+    path('my-uploads/', views.MyUploadsView.as_view(), name='my-uploads'),
 ]

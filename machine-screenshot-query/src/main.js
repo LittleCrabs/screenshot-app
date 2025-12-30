@@ -1,4 +1,6 @@
 import { createApp } from 'vue'
+import { Locale } from 'vant'
+import enUS from 'vant/es/locale/lang/en-US'
 import {
   Button,
   Field,
@@ -15,10 +17,16 @@ import {
   Dialog,
   Radio,
   RadioGroup,
+  Tag,
+  Empty,
+  Progress,
 } from 'vant'
 import 'vant/lib/index.css'
 import './style.css'
 import App from './App.vue'
+
+// 设置 Vant 为英文
+Locale.use('en-US', enUS)
 
 const app = createApp(App)
 
@@ -38,5 +46,8 @@ app.use(Toast)
 app.use(Dialog)
 app.use(Radio)
 app.use(RadioGroup)
+app.use(Tag)
+app.use(Empty)
+app.use(Progress)
 
 app.mount('#app')

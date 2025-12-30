@@ -7,8 +7,9 @@
         clearable @keyup.enter="searchVideos" :disabled="!selectedBrand" />
     </van-cell-group>
 
-    <div class="query-btn-wrap" v-if="selectedBrand">
-      <van-button type="primary" block round :loading="loading" @click="searchVideos">Search</van-button>
+    <div class="btn-group">
+      <van-button type="primary" round :loading="loading" @click="searchVideos" :disabled="!selectedBrand">Search</van-button>
+      <van-button type="success" round icon="plus" @click="$refs.uploadRef.open()">Upload Video</van-button>
     </div>
 
     <van-cell-group inset title="Videos" v-if="videoList.length > 0">
@@ -26,15 +27,20 @@
     <van-popup v-model:show="showBrandPicker" position="bottom" round>
       <van-picker :columns="brandOptions" @confirm="onBrandConfirm" @cancel="showBrandPicker = false" title="Select Brand" />
     </van-popup>
+
+    <!-- Video Upload -->
+    <VideoUpload ref="uploadRef" :api-base="apiBase" />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { showToast } from 'vant'
+import VideoUpload from './VideoUpload.vue'
 
 const props = defineProps({ apiBase: { type: String, default: '' } })
 
+const uploadRef = ref(null)
 const brandListRaw = ref([])
 const videoList = ref([])
 const videoUrl = ref('')
@@ -44,7 +50,7 @@ const selectedBrandText = ref('')
 const loading = ref(false)
 const showBrandPicker = ref(false)
 
-const brandOptions = computed(() => brandListRaw.value.map(b => ({ text: b, value: b })))
+const brandOptions = computed(() => brandListRaw.value.filter(b => b !== 'Pending Video').map(b => ({ text: b, value: b })))
 
 onMounted(() => fetchBrands())
 
@@ -87,7 +93,8 @@ const playVideo = (item) => {
 </script>
 
 <style scoped>
-.query-btn-wrap { padding: 16px; }
+.btn-group { padding: 16px; display: flex; gap: 12px; }
+.btn-group .van-button { flex: 1; }
 .video-player { padding: 12px; }
 .video-player video { border-radius: 8px; }
 </style>

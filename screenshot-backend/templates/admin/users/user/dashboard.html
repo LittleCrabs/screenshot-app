@@ -1,0 +1,111 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-bottom: 30px;">
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="margin: 0 0 10px; color: #666;">总查询次数</h3>
+        <p style="font-size: 36px; font-weight: bold; margin: 0; color: #1976d2;">{{ total_queries }}</p>
+    </div>
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3 style="margin: 0 0 10px; color: #666;">总上传数量</h3>
+        <p style="font-size: 36px; font-weight: bold; margin: 0; color: #388e3c;">{{ total_uploads }}</p>
+    </div>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 20px;">
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3>查询统计（按模式）</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">模式</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">查询次数</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in query_by_mode %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ item.mode }}</td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ item.count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="padding: 10px; text-align: center; color: #999;">暂无数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3>上传统计（按品牌）</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">品牌</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">上传数量</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in upload_by_brand %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ item.brand }}</td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ item.count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="padding: 10px; text-align: center; color: #999;">暂无数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3>用户上传排行 TOP 10</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">用户</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">上传数</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in top_uploaders %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ user.username }}</td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ user.upload_count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="padding: 10px; text-align: center; color: #999;">暂无数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div style="background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+        <h3>用户查询排行 TOP 10</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f5f5f5;">
+                    <th style="padding: 10px; text-align: left; border-bottom: 1px solid #ddd;">用户</th>
+                    <th style="padding: 10px; text-align: right; border-bottom: 1px solid #ddd;">查询数</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for user in top_queriers %}
+                <tr>
+                    <td style="padding: 10px; border-bottom: 1px solid #eee;">{{ user.username }}</td>
+                    <td style="padding: 10px; text-align: right; border-bottom: 1px solid #eee;">{{ user.query_count }}</td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="2" style="padding: 10px; text-align: center; color: #999;">暂无数据</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<p style="margin-top: 20px;">
+    <a href="../" class="button" style="padding: 10px 20px; background: #417690; color: #fff; text-decoration: none; border-radius: 4px;">返回用户列表</a>
+</p>
+{% endblock %}

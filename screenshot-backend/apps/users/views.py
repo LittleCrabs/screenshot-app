@@ -47,3 +47,43 @@ class UserInfoView(APIView):
             'username': user.username,
             'is_staff': user.is_staff,
         })
+
+
+class ChangePasswordView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        old_password = request.data.get('old_password', '')
+        new_password = request.data.get('new_password', '')
+
+        if not old_password or not new_password:
+            return Response({'error': 'Please enter old and new password'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if len(new_password) < 6:
+            return Response({'error': 'Password must be at least 6 characters'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        if not user.check_password(old_password):
+            return Response({'error': 'Old password is incorrect'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.set_password(new_password)
+        user.save()
+        return Response({'message': 'Password changed successfully'})
+
+
+class UpdatePhoneView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        phone = request.data.get('phone', '').strip()
+
+        if not phone:
+            return Response({'error': 'Please enter phone number'}, status=status.HTTP_400_BAD_REQUEST)
+
+        user = request.user
+        user.phone = phone
+        user.save()
+        return Response({'message': 'Phone number updated successfully', 'phone': phone})
+
+    def get(self, request):
+        return Response({'phone': request.user.phone or ''})

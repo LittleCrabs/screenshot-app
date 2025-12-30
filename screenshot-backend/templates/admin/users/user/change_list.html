@@ -3,6 +3,11 @@
 
 {% block object-tools-items %}
 <li>
+    <a href="{% url 'admin:users_dashboard' %}" class="viewlink">
+        统计 Dashboard
+    </a>
+</li>
+<li>
     <a href="{% url 'admin:users_user_import_excel' %}" class="addlink">
         批量导入用户 (Excel)
     </a>
