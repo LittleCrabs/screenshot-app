@@ -3,23 +3,23 @@
 
 {% block content %}
 <div id="content-main">
-    <h1>批量导入用户</h1>
+    <h1>Batch Import Users</h1>
     
     <div style="margin-bottom: 20px; padding: 15px; background: #f8f9fa; border-radius: 4px;">
-        <h3>Excel格式说明：</h3>
-        <p>请按以下列顺序填写数据（第一行为表头）：</p>
+        <h3>Excel Format:</h3>
+        <p>Please fill in data in the following column order (first row is header):</p>
         <table style="border-collapse: collapse; width: 100%;">
             <tr style="background: #e9ecef;">
-                <th style="border: 1px solid #dee2e6; padding: 8px;">A列</th>
-                <th style="border: 1px solid #dee2e6; padding: 8px;">B列</th>
-                <th style="border: 1px solid #dee2e6; padding: 8px;">C列</th>
-                <th style="border: 1px solid #dee2e6; padding: 8px;">D列</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">Column A</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">Column B</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">Column C</th>
+                <th style="border: 1px solid #dee2e6; padding: 8px;">Column D</th>
             </tr>
             <tr>
-                <td style="border: 1px solid #dee2e6; padding: 8px;">用户名 (必填)</td>
-                <td style="border: 1px solid #dee2e6; padding: 8px;">密码 (可选，默认password123)</td>
-                <td style="border: 1px solid #dee2e6; padding: 8px;">手机号 (可选)</td>
-                <td style="border: 1px solid #dee2e6; padding: 8px;">部门 (可选)</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">Username (required)</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">Password (optional, default: password123)</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">Phone (optional)</td>
+                <td style="border: 1px solid #dee2e6; padding: 8px;">Department (optional)</td>
             </tr>
         </table>
     </div>
@@ -32,8 +32,8 @@
             </div>
         </fieldset>
         <div class="submit-row">
-            <input type="submit" value="导入" class="default">
-            <a href=".." class="button cancel-link">取消</a>
+            <input type="submit" value="Import" class="default">
+            <a href=".." class="button cancel-link">Cancel</a>
         </div>
     </form>
 </div>
