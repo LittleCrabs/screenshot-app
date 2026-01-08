@@ -105,3 +105,7 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ],
 }
+
+# 上传文件大小限制
+DATA_UPLOAD_MAX_MEMORY_SIZE = 2147483648  # 2GB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2147483648  # 2GB
