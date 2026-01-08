@@ -10,5 +10,7 @@ urlpatterns = [
     path('component-data/', views.ComponentContentView.as_view(), name='component-data'),
     path('videos/', views.VideoListView.as_view(), name='video-list'),
     path('upload-video/', views.VideoUploadView.as_view(), name='upload-video'),
+    path('upload-chunk/', views.ChunkUploadView.as_view(), name='upload-chunk'),
+    path('merge-chunks/', views.ChunkMergeView.as_view(), name='merge-chunks'),
     path('my-uploads/', views.MyUploadsView.as_view(), name='my-uploads'),
 ]

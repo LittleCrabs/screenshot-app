@@ -213,7 +213,7 @@ class VideoListView(APIView):
 
 
 class VideoUploadView(APIView):
-    """上传视频到 Pending Video 目录"""
+    """上传视频到 Pending Video 目录（小文件直接上传）"""
     permission_classes = [IsAuthenticated]
 
     ALLOWED_BRANDS = ['FUJI XEROX', 'FUJI FILM', 'Canon']
@@ -262,7 +262,7 @@ class VideoUploadView(APIView):
             with open(file_path, 'wb+') as dest:
                 for chunk in video_file.chunks():
                     dest.write(chunk)
-            
+
             # 记录上传记录
             VideoUploadRecord.objects.create(
                 user=request.user,
@@ -272,10 +272,148 @@ class VideoUploadView(APIView):
                 filename=filename,
                 file_path=str(file_path)
             )
-            
+
             return Response({
                 'message': 'Upload successful',
                 'filename': filename,
+                'brand': brand,
+                'model': model,
+                'title': title
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class ChunkUploadView(APIView):
+    """分片上传视频"""
+    permission_classes = [IsAuthenticated]
+
+    ALLOWED_BRANDS = ['FUJI XEROX', 'FUJI FILM', 'Canon']
+
+    def post(self, request):
+        """上传单个分片"""
+        upload_id = request.data.get('uploadId', '')
+        chunk_index = request.data.get('chunkIndex')
+        total_chunks = request.data.get('totalChunks')
+        chunk_file = request.FILES.get('chunk')
+
+        if not upload_id or chunk_index is None or not total_chunks or not chunk_file:
+            return Response({'error': 'Missing parameters'}, status=400)
+
+        try:
+            chunk_index = int(chunk_index)
+            total_chunks = int(total_chunks)
+        except ValueError:
+            return Response({'error': 'Invalid chunk parameters'}, status=400)
+
+        # 创建临时目录存放分片
+        temp_dir = settings.SCREENSHOTS_ROOT / 'temp_chunks' / upload_id
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存分片
+        chunk_path = temp_dir / f'chunk_{chunk_index}'
+        try:
+            with open(chunk_path, 'wb+') as dest:
+                for chunk in chunk_file.chunks():
+                    dest.write(chunk)
+
+            # 检查已上传的分片数
+            uploaded_chunks = len(list(temp_dir.glob('chunk_*')))
+
+            return Response({
+                'message': 'Chunk uploaded',
+                'chunkIndex': chunk_index,
+                'uploadedChunks': uploaded_chunks,
+                'totalChunks': total_chunks
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class ChunkMergeView(APIView):
+    """合并分片"""
+    permission_classes = [IsAuthenticated]
+
+    ALLOWED_BRANDS = ['FUJI XEROX', 'FUJI FILM', 'Canon']
+
+    def post(self, request):
+        upload_id = request.data.get('uploadId', '')
+        brand = request.data.get('brand', '')
+        model = request.data.get('model', '').strip()
+        title = request.data.get('title', '').strip()
+        filename = request.data.get('filename', '')
+        total_chunks = request.data.get('totalChunks')
+
+        if not upload_id or not brand or not model or not title or not filename or not total_chunks:
+            return Response({'error': 'Missing parameters'}, status=400)
+
+        if brand not in self.ALLOWED_BRANDS:
+            return Response({'error': 'Invalid brand'}, status=400)
+
+        try:
+            total_chunks = int(total_chunks)
+        except ValueError:
+            return Response({'error': 'Invalid totalChunks'}, status=400)
+
+        temp_dir = settings.SCREENSHOTS_ROOT / 'temp_chunks' / upload_id
+
+        if not temp_dir.exists():
+            return Response({'error': 'Upload not found'}, status=404)
+
+        # 检查所有分片是否都已上传
+        uploaded_chunks = len(list(temp_dir.glob('chunk_*')))
+        if uploaded_chunks < total_chunks:
+            return Response({
+                'error': f'Missing chunks: {uploaded_chunks}/{total_chunks}',
+                'uploadedChunks': uploaded_chunks,
+                'totalChunks': total_chunks
+            }, status=400)
+
+        # 创建目标目录
+        pending_dir = settings.SCREENSHOTS_ROOT / 'Video Tutorial' / 'Pending Video' / brand
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成文件名
+        ext = Path(filename).suffix.lower()
+        safe_model = model.replace(' ', '_').replace('/', '_')
+        safe_title = title.replace(' ', '_').replace('/', '_')
+        username = request.user.username
+        final_filename = f"{safe_model}_{safe_title}_{username}{ext}"
+        file_path = pending_dir / final_filename
+
+        # 如果文件已存在，添加数字后缀
+        counter = 1
+        while file_path.exists():
+            final_filename = f"{safe_model}_{safe_title}_{username}_{counter}{ext}"
+            file_path = pending_dir / final_filename
+            counter += 1
+
+        # 合并分片
+        try:
+            with open(file_path, 'wb') as dest:
+                for i in range(total_chunks):
+                    chunk_path = temp_dir / f'chunk_{i}'
+                    if chunk_path.exists():
+                        with open(chunk_path, 'rb') as chunk:
+                            dest.write(chunk.read())
+
+            # 删除临时分片
+            import shutil
+            shutil.rmtree(temp_dir)
+
+            # 记录上传记录
+            VideoUploadRecord.objects.create(
+                user=request.user,
+                brand=brand,
+                model=model,
+                title=title,
+                filename=final_filename,
+                file_path=str(file_path)
+            )
+
+            return Response({
+                'message': 'Upload successful',
+                'filename': final_filename,
                 'brand': brand,
                 'model': model,
                 'title': title

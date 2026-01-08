@@ -51,9 +51,9 @@
 
         <!-- 上传进度 -->
         <div v-if="uploading" class="upload-progress">
-          <p>Upload Progress:</p>
+          <p>{{ uploadStatus }}</p>
           <van-progress :percentage="progress" stroke-width="8" />
-          <p class="progress-hint">Uploading... Please don't close this page.</p>
+          <p class="progress-hint">{{ progressHint }}</p>
         </div>
 
         <div class="submit-btn">
@@ -84,6 +84,8 @@ const uploading = ref(false)
 const progress = ref(0)
 const uploadSuccess = ref(false)
 const fileInput = ref(null)
+const uploadStatus = ref('Upload Progress:')
+const progressHint = ref('Uploading... Please don\'t close this page.')
 
 const form = ref({
   brand: '',
@@ -98,6 +100,9 @@ const brandOptions = [
   { text: 'FUJI FILM', value: 'FUJI FILM' },
   { text: 'Canon', value: 'Canon' }
 ]
+
+// 分片大小：2MB
+const CHUNK_SIZE = 2 * 1024 * 1024
 
 const canSubmit = computed(() => {
   return form.value.brand && form.value.model.trim() && form.value.title.trim() && form.value.file
@@ -117,6 +122,8 @@ const resetForm = () => {
   form.value = { brand: '', brandText: '', model: '', title: '', file: null }
   progress.value = 0
   uploadSuccess.value = false
+  uploadStatus.value = 'Upload Progress:'
+  progressHint.value = 'Uploading... Please don\'t close this page.'
 }
 
 const onBrandConfirm = ({ selectedOptions }) => {
@@ -144,19 +151,104 @@ const formatSize = (bytes) => {
   return (bytes / 1024 / 1024 / 1024).toFixed(1) + ' GB'
 }
 
-const submit = async () => {
-  if (!canSubmit.value) return
+// 生成唯一上传ID
+const generateUploadId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2)
+}
 
-  uploading.value = true
-  progress.value = 0
-
+// 上传单个分片
+const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks) => {
   const formData = new FormData()
-  formData.append('brand', form.value.brand)
-  formData.append('model', form.value.model)
-  formData.append('title', form.value.title)
-  formData.append('video', form.value.file)
+  formData.append('uploadId', uploadId)
+  formData.append('chunkIndex', chunkIndex)
+  formData.append('totalChunks', totalChunks)
+  formData.append('chunk', chunk)
 
-  try {
+  const res = await fetch(`${props.apiBase}/api/screenshots/upload-chunk/`, {
+    method: 'POST',
+    credentials: 'include',
+    body: formData
+  })
+
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Chunk upload failed')
+  }
+
+  return res.json()
+}
+
+// 合并分片
+const mergeChunks = async (uploadId, totalChunks) => {
+  const res = await fetch(`${props.apiBase}/api/screenshots/merge-chunks/`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      uploadId,
+      brand: form.value.brand,
+      model: form.value.model,
+      title: form.value.title,
+      filename: form.value.file.name,
+      totalChunks
+    })
+  })
+
+  if (!res.ok) {
+    const data = await res.json()
+    throw new Error(data.error || 'Merge failed')
+  }
+
+  return res.json()
+}
+
+// 分片上传
+const chunkUpload = async () => {
+  const file = form.value.file
+  const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
+  const uploadId = generateUploadId()
+
+  uploadStatus.value = `Uploading: 0/${totalChunks} chunks`
+
+  for (let i = 0; i < totalChunks; i++) {
+    const start = i * CHUNK_SIZE
+    const end = Math.min(start + CHUNK_SIZE, file.size)
+    const chunk = file.slice(start, end)
+
+    // 重试机制
+    let retries = 3
+    while (retries > 0) {
+      try {
+        await uploadChunk(uploadId, chunk, i, totalChunks)
+        break
+      } catch (err) {
+        retries--
+        if (retries === 0) throw err
+        await new Promise(r => setTimeout(r, 1000)) // 等1秒重试
+      }
+    }
+
+    progress.value = Math.round(((i + 1) / totalChunks) * 95) // 留5%给合并
+    uploadStatus.value = `Uploading: ${i + 1}/${totalChunks} chunks`
+    progressHint.value = `${formatSize((i + 1) * CHUNK_SIZE)} / ${formatSize(file.size)}`
+  }
+
+  // 合并分片
+  uploadStatus.value = 'Merging chunks...'
+  progressHint.value = 'Almost done...'
+  await mergeChunks(uploadId, totalChunks)
+  progress.value = 100
+}
+
+// 小文件直接上传
+const directUpload = () => {
+  return new Promise((resolve, reject) => {
+    const formData = new FormData()
+    formData.append('brand', form.value.brand)
+    formData.append('model', form.value.model)
+    formData.append('title', form.value.title)
+    formData.append('video', form.value.file)
+
     const xhr = new XMLHttpRequest()
     xhr.open('POST', `${props.apiBase}/api/screenshots/upload-video/`)
     xhr.withCredentials = true
@@ -164,28 +256,45 @@ const submit = async () => {
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable) {
         progress.value = Math.round((e.loaded / e.total) * 100)
+        progressHint.value = `${formatSize(e.loaded)} / ${formatSize(e.total)}`
       }
     }
 
     xhr.onload = () => {
-      uploading.value = false
       if (xhr.status === 200) {
-        uploadSuccess.value = true
+        resolve(JSON.parse(xhr.responseText))
       } else {
         const res = JSON.parse(xhr.responseText)
-        showToast(res.error || 'Upload failed')
+        reject(new Error(res.error || 'Upload failed'))
       }
     }
 
-    xhr.onerror = () => {
-      uploading.value = false
-      showToast('Network error')
-    }
-
+    xhr.onerror = () => reject(new Error('Network error'))
     xhr.send(formData)
-  } catch {
+  })
+}
+
+const submit = async () => {
+  if (!canSubmit.value) return
+
+  uploading.value = true
+  progress.value = 0
+  uploadStatus.value = 'Upload Progress:'
+  progressHint.value = 'Uploading... Please don\'t close this page.'
+
+  try {
+    const file = form.value.file
+    // 大于 10MB 使用分片上传
+    if (file.size > 10 * 1024 * 1024) {
+      await chunkUpload()
+    } else {
+      await directUpload()
+    }
+    uploadSuccess.value = true
+  } catch (err) {
+    showToast(err.message || 'Upload failed')
+  } finally {
     uploading.value = false
-    showToast('Upload failed')
   }
 }
 
