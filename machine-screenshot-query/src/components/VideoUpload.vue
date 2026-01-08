@@ -49,7 +49,7 @@
           </div>
         </van-cell-group>
 
-        <!-- 上传进度 -->
+        <!-- 上传进度. -->
         <div v-if="uploading" class="upload-progress">
           <p>{{ uploadStatus }}</p>
           <van-progress :percentage="progress" stroke-width="8" />
