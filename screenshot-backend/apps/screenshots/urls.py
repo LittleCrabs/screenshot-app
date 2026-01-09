@@ -13,4 +13,8 @@ urlpatterns = [
     path('upload-chunk/', views.ChunkUploadView.as_view(), name='upload-chunk'),
     path('merge-chunks/', views.ChunkMergeView.as_view(), name='merge-chunks'),
     path('my-uploads/', views.MyUploadsView.as_view(), name='my-uploads'),
+    # Token-based upload endpoints (for bypassing Cloudflare via upload subdomain)
+    path('upload-token/', views.UploadTokenView.as_view(), name='upload-token'),
+    path('upload-chunk-token/', views.ChunkUploadTokenView.as_view(), name='upload-chunk-token'),
+    path('merge-chunks-token/', views.ChunkMergeTokenView.as_view(), name='merge-chunks-token'),
 ]

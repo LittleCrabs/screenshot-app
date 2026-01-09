@@ -83,6 +83,8 @@ const emit = defineEmits(['close'])
 
 // 获取上传地址（优先用 uploadBase，没有则用 apiBase）
 const getUploadBase = () => props.uploadBase || props.apiBase
+// 是否使用独立上传域名（需要 token 验证）
+const useTokenAuth = () => !!props.uploadBase && props.uploadBase !== props.apiBase
 
 const show = ref(false)
 const showBrandPicker = ref(false)
@@ -92,6 +94,7 @@ const uploadSuccess = ref(false)
 const fileInput = ref(null)
 const uploadStatus = ref('Upload Progress:')
 const progressHint = ref('Uploading... Please don\'t close this page.')
+const uploadToken = ref('')  // 上传 token
 
 const form = ref({
   brand: '',
@@ -164,17 +167,35 @@ const generateUploadId = () => {
   return Date.now().toString(36) + Math.random().toString(36).substr(2)
 }
 
-// 上传单个分片
-const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks) => {
+// 获取上传 token（从主域名获取）
+const fetchUploadToken = async () => {
+  const res = await fetch(`${props.apiBase}/api/screenshots/upload-token/`, {
+    method: 'GET',
+    credentials: 'include'
+  })
+  if (!res.ok) {
+    throw new Error('Failed to get upload token')
+  }
+  const data = await res.json()
+  return data.token
+}
+
+// 上传单个分片（支持 token 验证）
+const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks, token = '') => {
   const formData = new FormData()
   formData.append('uploadId', uploadId)
   formData.append('chunkIndex', chunkIndex)
   formData.append('totalChunks', totalChunks)
   formData.append('chunk', chunk)
+  if (token) {
+    formData.append('token', token)
+  }
 
-  const res = await fetch(`${getUploadBase()}/api/screenshots/upload-chunk/`, {
+  // 使用 token 时用 token 专用接口
+  const endpoint = token ? 'upload-chunk-token' : 'upload-chunk'
+  const res = await fetch(`${getUploadBase()}/api/screenshots/${endpoint}/`, {
     method: 'POST',
-    credentials: 'include',
+    credentials: token ? 'omit' : 'include',  // token 模式不需要 cookie
     body: formData
   })
 
@@ -186,20 +207,27 @@ const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks) => {
   return res.json()
 }
 
-// 合并分片
-const mergeChunks = async (uploadId, totalChunks) => {
-  const res = await fetch(`${getUploadBase()}/api/screenshots/merge-chunks/`, {
+// 合并分片（支持 token 验证）
+const mergeChunks = async (uploadId, totalChunks, token = '') => {
+  const body = {
+    uploadId,
+    brand: form.value.brand,
+    model: form.value.model,
+    title: form.value.title,
+    filename: form.value.file.name,
+    totalChunks
+  }
+  if (token) {
+    body.token = token
+  }
+
+  // 使用 token 时用 token 专用接口
+  const endpoint = token ? 'merge-chunks-token' : 'merge-chunks'
+  const res = await fetch(`${getUploadBase()}/api/screenshots/${endpoint}/`, {
     method: 'POST',
-    credentials: 'include',
+    credentials: token ? 'omit' : 'include',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      uploadId,
-      brand: form.value.brand,
-      model: form.value.model,
-      title: form.value.title,
-      filename: form.value.file.name,
-      totalChunks
-    })
+    body: JSON.stringify(body)
   })
 
   if (!res.ok) {
@@ -215,6 +243,14 @@ const chunkUpload = async () => {
   const file = form.value.file
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
   const uploadId = generateUploadId()
+
+  // 如果使用独立上传域名，先获取 token
+  let token = ''
+  if (useTokenAuth()) {
+    uploadStatus.value = 'Getting upload token...'
+    token = await fetchUploadToken()
+    uploadToken.value = token
+  }
 
   uploadStatus.value = `Uploading: 0/${totalChunks} chunks`
 
@@ -240,7 +276,7 @@ const chunkUpload = async () => {
       let retries = 3
       while (retries > 0) {
         try {
-          await uploadChunk(uploadId, chunk, i, totalChunks)
+          await uploadChunk(uploadId, chunk, i, totalChunks, token)
           break
         } catch (err) {
           retries--
@@ -266,7 +302,7 @@ const chunkUpload = async () => {
   // 合并分片
   uploadStatus.value = 'Merging chunks...'
   progressHint.value = 'Almost done...'
-  await mergeChunks(uploadId, totalChunks)
+  await mergeChunks(uploadId, totalChunks, token)
   progress.value = 100
 }
 

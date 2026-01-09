@@ -1,9 +1,12 @@
 from pathlib import Path
 from django.conf import settings
+from django.contrib.sessions.models import Session
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
-from apps.users.models import VideoUploadRecord, QueryLog
+from rest_framework.permissions import IsAuthenticated, AllowAny
+from apps.users.models import VideoUploadRecord, QueryLog, User
+import hashlib
+import time
 
 
 class ModeListView(APIView):
@@ -437,3 +440,184 @@ class MyUploadsView(APIView):
             'created_at': u.created_at.strftime('%Y-%m-%d %H:%M')
         } for u in uploads]
         return Response({'uploads': data, 'count': len(data)})
+
+
+class UploadTokenView(APIView):
+    """生成上传 token"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        # 生成一个简单的 token: user_id + timestamp + hash
+        user_id = request.user.id
+        timestamp = int(time.time())
+        secret = settings.SECRET_KEY
+        token_str = f"{user_id}:{timestamp}:{secret}"
+        token_hash = hashlib.sha256(token_str.encode()).hexdigest()[:32]
+        token = f"{user_id}:{timestamp}:{token_hash}"
+        
+        return Response({'token': token, 'expires': timestamp + 3600})  # 1小时有效
+
+
+def verify_upload_token(token):
+    """验证上传 token，返回 user 或 None"""
+    try:
+        parts = token.split(':')
+        if len(parts) != 3:
+            return None
+        
+        user_id, timestamp, token_hash = parts
+        user_id = int(user_id)
+        timestamp = int(timestamp)
+        
+        # 检查是否过期（1小时）
+        if time.time() - timestamp > 3600:
+            return None
+        
+        # 验证 hash
+        secret = settings.SECRET_KEY
+        expected_str = f"{user_id}:{timestamp}:{secret}"
+        expected_hash = hashlib.sha256(expected_str.encode()).hexdigest()[:32]
+        
+        if token_hash != expected_hash:
+            return None
+        
+        return User.objects.get(id=user_id)
+    except Exception:
+        return None
+
+
+class ChunkUploadTokenView(APIView):
+    """分片上传视频（使用 token 验证，支持跨域）"""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        """上传单个分片"""
+        token = request.data.get('token', '') or request.headers.get('X-Upload-Token', '')
+        user = verify_upload_token(token)
+        if not user:
+            return Response({'error': 'Invalid or expired token'}, status=401)
+
+        upload_id = request.data.get('uploadId', '')
+        chunk_index = request.data.get('chunkIndex')
+        total_chunks = request.data.get('totalChunks')
+        chunk_file = request.FILES.get('chunk')
+
+        if not upload_id or chunk_index is None or not total_chunks or not chunk_file:
+            return Response({'error': 'Missing parameters'}, status=400)
+
+        try:
+            chunk_index = int(chunk_index)
+            total_chunks = int(total_chunks)
+        except ValueError:
+            return Response({'error': 'Invalid chunk parameters'}, status=400)
+
+        # 创建临时目录存放分片（包含 user_id 防止冲突）
+        temp_dir = settings.SCREENSHOTS_ROOT / 'temp_chunks' / f"{user.id}_{upload_id}"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # 保存分片
+        chunk_path = temp_dir / f'chunk_{chunk_index}'
+        try:
+            with open(chunk_path, 'wb+') as dest:
+                for chunk in chunk_file.chunks():
+                    dest.write(chunk)
+
+            uploaded_chunks = len(list(temp_dir.glob('chunk_*')))
+
+            return Response({
+                'message': 'Chunk uploaded',
+                'chunkIndex': chunk_index,
+                'uploadedChunks': uploaded_chunks,
+                'totalChunks': total_chunks
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
+
+
+class ChunkMergeTokenView(APIView):
+    """合并分片（使用 token 验证，支持跨域）"""
+    permission_classes = [AllowAny]
+
+    ALLOWED_BRANDS = ['FUJI XEROX', 'FUJI FILM', 'Canon']
+
+    def post(self, request):
+        token = request.data.get('token', '') or request.headers.get('X-Upload-Token', '')
+        user = verify_upload_token(token)
+        if not user:
+            return Response({'error': 'Invalid or expired token'}, status=401)
+
+        upload_id = request.data.get('uploadId', '')
+        brand = request.data.get('brand', '')
+        model = request.data.get('model', '').strip()
+        title = request.data.get('title', '').strip()
+        filename = request.data.get('filename', '')
+        total_chunks = request.data.get('totalChunks')
+
+        if not upload_id or not brand or not model or not title or not filename or not total_chunks:
+            return Response({'error': 'Missing parameters'}, status=400)
+
+        if brand not in self.ALLOWED_BRANDS:
+            return Response({'error': 'Invalid brand'}, status=400)
+
+        try:
+            total_chunks = int(total_chunks)
+        except ValueError:
+            return Response({'error': 'Invalid totalChunks'}, status=400)
+
+        temp_dir = settings.SCREENSHOTS_ROOT / 'temp_chunks' / f"{user.id}_{upload_id}"
+
+        if not temp_dir.exists():
+            return Response({'error': 'Upload not found'}, status=404)
+
+        uploaded_chunks = len(list(temp_dir.glob('chunk_*')))
+        if uploaded_chunks < total_chunks:
+            return Response({
+                'error': f'Missing chunks: {uploaded_chunks}/{total_chunks}',
+                'uploadedChunks': uploaded_chunks,
+                'totalChunks': total_chunks
+            }, status=400)
+
+        pending_dir = settings.SCREENSHOTS_ROOT / 'Video Tutorial' / 'Pending Video' / brand
+        pending_dir.mkdir(parents=True, exist_ok=True)
+
+        ext = Path(filename).suffix.lower()
+        safe_model = model.replace(' ', '_').replace('/', '_')
+        safe_title = title.replace(' ', '_').replace('/', '_')
+        final_filename = f"{safe_model}_{safe_title}_{user.username}{ext}"
+        file_path = pending_dir / final_filename
+
+        counter = 1
+        while file_path.exists():
+            final_filename = f"{safe_model}_{safe_title}_{user.username}_{counter}{ext}"
+            file_path = pending_dir / final_filename
+            counter += 1
+
+        try:
+            with open(file_path, 'wb') as dest:
+                for i in range(total_chunks):
+                    chunk_path = temp_dir / f'chunk_{i}'
+                    if chunk_path.exists():
+                        with open(chunk_path, 'rb') as chunk:
+                            dest.write(chunk.read())
+
+            import shutil
+            shutil.rmtree(temp_dir)
+
+            VideoUploadRecord.objects.create(
+                user=user,
+                brand=brand,
+                model=model,
+                title=title,
+                filename=final_filename,
+                file_path=str(file_path)
+            )
+
+            return Response({
+                'message': 'Upload successful',
+                'filename': final_filename,
+                'brand': brand,
+                'model': model,
+                'title': title
+            })
+        except Exception as e:
+            return Response({'error': str(e)}, status=500)
