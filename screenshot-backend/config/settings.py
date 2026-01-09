@@ -94,7 +94,19 @@ CORS_ALLOW_ALL_ORIGINS = True
 CORS_ALLOW_CREDENTIALS = True
 
 # CSRF 配置 - 允许跨域请求
-CSRF_TRUSTED_ORIGINS = ['http://localhost:5173', 'http://127.0.0.1:5173']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:5173', 
+    'http://127.0.0.1:5173',
+    'http://edoc.archercopier.xyz',
+    'https://edoc.archercopier.xyz',
+    'http://upload.archercopier.xyz',
+    'https://upload.archercopier.xyz',
+]
+
+# Session Cookie 设置
+SESSION_COOKIE_SAMESITE = 'None'
+SESSION_COOKIE_SECURE = True  # 如果用 HTTPS 改成 True
+SESSION_COOKIE_DOMAIN = '.archercopier.xyz'  # 允许子域名共享 Cookie
 
 # REST Framework
 REST_FRAMEWORK = {
