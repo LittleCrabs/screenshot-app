@@ -101,10 +101,10 @@ const brandOptions = [
   { text: 'Canon', value: 'Canon' }
 ]
 
-// 分片大小：5MB
-const CHUNK_SIZE = 5 * 1024 * 1024
+// 分片大小：10MB
+const CHUNK_SIZE = 10 * 1024 * 1024
 // 并行上传数
-const CONCURRENT_UPLOADS = 3
+const CONCURRENT_UPLOADS = 5
 
 const canSubmit = computed(() => {
   return form.value.brand && form.value.model.trim() && form.value.title.trim() && form.value.file
