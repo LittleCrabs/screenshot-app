@@ -5,6 +5,7 @@ services:
     volumes:
       - backend_data:/app/data
       - ./screenshot-backend/screenshots:/app/screenshots
+      - static_files:/app/static
     environment:
       - DEBUG=False
     restart: unless-stopped
@@ -18,9 +19,11 @@ services:
     volumes:
       - ./screenshot-backend/screenshots:/app/screenshots:ro
       - /etc/letsencrypt:/etc/letsencrypt:ro
+      - static_files:/app/static:ro
     depends_on:
       - backend
     restart: unless-stopped
 
 volumes:
   backend_data:
+  static_files:
