@@ -101,8 +101,10 @@ const brandOptions = [
   { text: 'Canon', value: 'Canon' }
 ]
 
-// 分片大小：2MB
-const CHUNK_SIZE = 2 * 1024 * 1024
+// 分片大小：5MB
+const CHUNK_SIZE = 5 * 1024 * 1024
+// 并行上传数
+const CONCURRENT_UPLOADS = 3
 
 const canSubmit = computed(() => {
   return form.value.brand && form.value.model.trim() && form.value.title.trim() && form.value.file
@@ -202,7 +204,7 @@ const mergeChunks = async (uploadId, totalChunks) => {
   return res.json()
 }
 
-// 分片上传
+// 分片上传（并行）
 const chunkUpload = async () => {
   const file = form.value.file
   const totalChunks = Math.ceil(file.size / CHUNK_SIZE)
@@ -210,28 +212,50 @@ const chunkUpload = async () => {
 
   uploadStatus.value = `Uploading: 0/${totalChunks} chunks`
 
+  let uploadedCount = 0
+  const uploadQueue = []
+
+  // 创建所有分片任务
   for (let i = 0; i < totalChunks; i++) {
-    const start = i * CHUNK_SIZE
-    const end = Math.min(start + CHUNK_SIZE, file.size)
-    const chunk = file.slice(start, end)
-
-    // 重试机制
-    let retries = 3
-    while (retries > 0) {
-      try {
-        await uploadChunk(uploadId, chunk, i, totalChunks)
-        break
-      } catch (err) {
-        retries--
-        if (retries === 0) throw err
-        await new Promise(r => setTimeout(r, 1000)) // 等1秒重试
-      }
-    }
-
-    progress.value = Math.round(((i + 1) / totalChunks) * 95) // 留5%给合并
-    uploadStatus.value = `Uploading: ${i + 1}/${totalChunks} chunks`
-    progressHint.value = `${formatSize((i + 1) * CHUNK_SIZE)} / ${formatSize(file.size)}`
+    uploadQueue.push(i)
   }
+
+  // 并行上传
+  const uploadWorker = async () => {
+    while (uploadQueue.length > 0) {
+      const i = uploadQueue.shift()
+      if (i === undefined) break
+
+      const start = i * CHUNK_SIZE
+      const end = Math.min(start + CHUNK_SIZE, file.size)
+      const chunk = file.slice(start, end)
+
+      // 重试机制
+      let retries = 3
+      while (retries > 0) {
+        try {
+          await uploadChunk(uploadId, chunk, i, totalChunks)
+          break
+        } catch (err) {
+          retries--
+          if (retries === 0) throw err
+          await new Promise(r => setTimeout(r, 1000))
+        }
+      }
+
+      uploadedCount++
+      progress.value = Math.round((uploadedCount / totalChunks) * 95)
+      uploadStatus.value = `Uploading: ${uploadedCount}/${totalChunks} chunks`
+      progressHint.value = `${formatSize(uploadedCount * CHUNK_SIZE)} / ${formatSize(file.size)}`
+    }
+  }
+
+  // 启动并行 worker
+  const workers = []
+  for (let i = 0; i < CONCURRENT_UPLOADS; i++) {
+    workers.push(uploadWorker())
+  }
+  await Promise.all(workers)
 
   // 合并分片
   uploadStatus.value = 'Merging chunks...'
