@@ -14,8 +14,10 @@ services:
     container_name: screenshot-frontend
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./screenshot-backend/screenshots:/app/screenshots:ro
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     depends_on:
       - backend
     restart: unless-stopped
