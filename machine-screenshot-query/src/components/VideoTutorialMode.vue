@@ -29,7 +29,7 @@
     </van-popup>
 
     <!-- Video Upload -->
-    <VideoUpload ref="uploadRef" :api-base="apiBase" />
+    <VideoUpload ref="uploadRef" :api-base="apiBase" :upload-base="uploadBase" />
   </div>
 </template>
 
@@ -38,7 +38,10 @@ import { ref, computed, onMounted } from 'vue'
 import { showToast } from 'vant'
 import VideoUpload from './VideoUpload.vue'
 
-const props = defineProps({ apiBase: { type: String, default: '' } })
+const props = defineProps({ 
+  apiBase: { type: String, default: '' },
+  uploadBase: { type: String, default: '' }
+})
 
 const uploadRef = ref(null)
 const brandListRaw = ref([])

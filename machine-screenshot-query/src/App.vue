@@ -23,7 +23,7 @@
           <Transition name="slide-fade" mode="out-in">
             <ErrorCodeMode v-if="queryMode === 'errorCode'" :api-base="API_BASE" key="errorCode" />
             <ComponentIOCheckMode v-else-if="queryMode === 'ioCheck'" :api-base="API_BASE" key="ioCheck" />
-            <VideoTutorialMode v-else-if="queryMode === 'video'" :api-base="API_BASE" key="video" />
+            <VideoTutorialMode v-else-if="queryMode === 'video'" :api-base="API_BASE" :upload-base="UPLOAD_BASE" key="video" />
           </Transition>
         </div>
 
@@ -43,6 +43,7 @@ import VideoTutorialMode from './components/VideoTutorialMode.vue'
 import Settings from './components/Settings.vue'
 
 const API_BASE = import.meta.env.VITE_API_BASE || ''
+const UPLOAD_BASE = import.meta.env.VITE_UPLOAD_BASE || ''  // 上传专用地址，绕过 CF
 
 const isLoggedIn = ref(false)
 const user = ref(null)

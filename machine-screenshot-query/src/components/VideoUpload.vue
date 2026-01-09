@@ -75,8 +75,14 @@
 import { ref, computed } from 'vue'
 import { showToast } from 'vant'
 
-const props = defineProps({ apiBase: { type: String, default: '' } })
+const props = defineProps({ 
+  apiBase: { type: String, default: '' },
+  uploadBase: { type: String, default: '' }  // 上传专用地址，绕过 CF
+})
 const emit = defineEmits(['close'])
+
+// 获取上传地址（优先用 uploadBase，没有则用 apiBase）
+const getUploadBase = () => props.uploadBase || props.apiBase
 
 const show = ref(false)
 const showBrandPicker = ref(false)
@@ -166,7 +172,7 @@ const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks) => {
   formData.append('totalChunks', totalChunks)
   formData.append('chunk', chunk)
 
-  const res = await fetch(`${props.apiBase}/api/screenshots/upload-chunk/`, {
+  const res = await fetch(`${getUploadBase()}/api/screenshots/upload-chunk/`, {
     method: 'POST',
     credentials: 'include',
     body: formData
@@ -182,7 +188,7 @@ const uploadChunk = async (uploadId, chunk, chunkIndex, totalChunks) => {
 
 // 合并分片
 const mergeChunks = async (uploadId, totalChunks) => {
-  const res = await fetch(`${props.apiBase}/api/screenshots/merge-chunks/`, {
+  const res = await fetch(`${getUploadBase()}/api/screenshots/merge-chunks/`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
@@ -274,7 +280,7 @@ const directUpload = () => {
     formData.append('video', form.value.file)
 
     const xhr = new XMLHttpRequest()
-    xhr.open('POST', `${props.apiBase}/api/screenshots/upload-video/`)
+    xhr.open('POST', `${getUploadBase()}/api/screenshots/upload-video/`)
     xhr.withCredentials = true
 
     xhr.upload.onprogress = (e) => {
